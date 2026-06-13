@@ -222,15 +222,30 @@ def render_status(state: dict) -> str:
     return linea
 
 
+def render_statusline() -> str:
+    """Status line mode: lee JSON de stdin (requerido por Claude Code) y muestra el TamaClaud."""
+    # Claude Code manda JSON por stdin, lo leemos pero no lo necesitamos
+    try:
+        import select
+        if not sys.stdin.isatty():
+            sys.stdin.read()
+    except Exception:
+        pass
+
+    state = load_state()
+    output = render_status(state)
+    save_state(state)
+    return output
+
+
 def main():
     """Punto de entrada principal. Parsea argumentos."""
     args = sys.argv[1:]
     state = load_state()
 
     if "--status" in args:
-        # Modo status line: solo imprimir y salir
-        print(render_status(state))
-        save_state(state)
+        # Modo status line para Claude Code: lee stdin JSON y muestra
+        print(render_statusline())
         sys.exit(0)
 
     if "--event" in args:

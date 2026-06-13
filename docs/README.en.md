@@ -110,3 +110,9 @@ python3 ~/.claude/tamaclaud.py --event post_tool --success true
 python3 ~/.claude/tamaclaud.py --event post_tool --success false
 python3 ~/.claude/tamaclaud.py --event stop
 ```
+
+## ⚠️ Windows Note
+
+There's a [known bug in Claude Code on Windows](https://github.com/anthropics/claude-code/issues/66455) where custom `statusLine` commands are never invoked automatically. The hooks (feeding/life mechanics) still work, but the persistent status bar won't render until this is fixed upstream.
+
+**Workaround:** type `tamaclaud` in the Claude Code CLI to check on your pet manually.

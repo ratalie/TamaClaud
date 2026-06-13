@@ -27,3 +27,17 @@ cp tamaclaud.py ~/.claude/tamaclaud.py
 ```
 
 Then add hooks to `~/.claude/settings.json` — full instructions in your language above ☝️
+
+---
+
+## ⚠️ Windows Note
+
+There's a [known bug in Claude Code on Windows](https://github.com/anthropics/claude-code/issues/66455) where custom `statusLine` commands are never invoked automatically. The hooks (feeding/life mechanics) work fine, but the persistent status bar won't render until this is fixed upstream.
+
+**Workaround:** type `tamaclaud` in the Claude Code CLI to check on your pet manually.
+
+---
+
+## 🚧 VS Code Extension — WIP
+
+A VS Code extension that shows TamaClaud in the status bar is coming soon. Stay tuned.
