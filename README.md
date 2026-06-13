@@ -41,3 +41,9 @@ There's a [known bug in Claude Code on Windows](https://github.com/anthropics/cl
 ## 🚧 VS Code Extension — WIP
 
 A VS Code extension that shows TamaClaud in the status bar is coming soon. Stay tuned.
+
+---
+
+## 🤝 Contributing
+
+PRs welcome! New languages, sprites, features, bug fixes — all good. See [CONTRIBUTING.md](./CONTRIBUTING.md).

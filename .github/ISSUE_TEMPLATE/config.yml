@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Add a new language 🌐
+    url: https://github.com/ratalie/TamaClaud/blob/main/CONTRIBUTING.md#adding-a-new-language
+    about: Want to translate TamaClaud? Check the contributing guide.

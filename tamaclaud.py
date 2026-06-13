@@ -1,250 +1,333 @@
 #!/usr/bin/env python3
 """
-TamaClaud — Un Tamagotchi que vive en la status line de Claude Code.
-Se alimenta de tool calls, muere si no codeas, y hay que resucitarlo.
+TamaClaud — A Tamagotchi living in your Claude Code status line.
+Feed it tool calls. Stop coding and it dies.
 """
 
 import json
-import os
 import sys
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-# --- Configuración ---
+# --- Config ---
 STATE_FILE = Path.home() / ".claude" / "tamaclaud.json"
-VIDA_MAX = 100
+HP_MAX = 100
 TOOL_SUCCESS_BONUS = 10
 TOOL_FAILURE_PENALTY = 5
-INACTIVIDAD_DECAY_MIN = 30  # minutos antes de empezar a perder vida
-HAMBRE_MIN = 120            # 2 horas sin actividad → HAMBRE
-MUERTE_MIN = 240            # 4 horas sin actividad → MUERTO
+INACTIVITY_DECAY_MIN = 30   # minutes before hp starts draining
+HUNGRY_MIN = 120            # 2 hours → HUNGRY
+DEAD_MIN = 240              # 4 hours → DEAD
 
-# --- Sprites ---
+# --- Sprites (universal, no translation needed) ---
 SPRITES = {
-    "huevo":      "(·)",
-    "durmiendo":  "(-.-)zzz",
-    "feliz":      "(^‿^)",
-    "comiendo":   "(°ᴗ°)♪",
-    "bailando":   "\\(^o^)/",
-    "estresado":  "(ó﹏ò)",
-    "hambre":     "(×_×)",
-    "muerto":     "(x_x)",
-    "fantasma":   "(†_†)",
+    "egg":       "(·)",
+    "sleeping":  "(-.-)zzz",
+    "happy":     "(^‿^)",
+    "eating":    "(°ᴗ°)♪",
+    "dancing":   "\\(^o^)/",
+    "stressed":  "(ó﹏ò)",
+    "hungry":    "(×_×)",
+    "dead":      "(x_x)",
+    "ghost":     "(†_†)",
 }
 
+# --- i18n ---
+TRANSLATIONS = {
+    "en": {
+        "hp": "hp",
+        "deaths": "deaths",
+        "calls": "calls",
+        "lang_set": "Language set to: English",
+    },
+    "es": {
+        "hp": "vida",
+        "deaths": "muertes",
+        "calls": "calls",
+        "lang_set": "Idioma configurado: Español",
+    },
+    "pt": {
+        "hp": "vida",
+        "deaths": "mortes",
+        "calls": "calls",
+        "lang_set": "Língua configurada: Português",
+    },
+}
+
+DEFAULT_LANG = "en"
+
+
+def get_lang(state: dict) -> str:
+    """Get language from state, default to English."""
+    lang = state.get("lang", DEFAULT_LANG)
+    if lang not in TRANSLATIONS:
+        lang = DEFAULT_LANG
+    return lang
+
+
+def t(state: dict, key: str) -> str:
+    """Translate a key based on current language."""
+    lang = get_lang(state)
+    return TRANSLATIONS[lang].get(key, TRANSLATIONS[DEFAULT_LANG].get(key, key))
+
+
+# --- State management ---
 
 def load_state() -> dict:
-    """Lee el estado desde el JSON. Si no existe, crea uno nuevo."""
+    """Load state from JSON. Creates new one if it doesn't exist."""
     if STATE_FILE.exists():
         try:
             with open(STATE_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, IOError):
             pass
-    return crear_estado_nuevo()
+    return create_new_state()
 
 
-def crear_estado_nuevo() -> dict:
-    """Crea un estado fresco para un TamaClaud recién nacido."""
-    ahora = datetime.now(timezone.utc).isoformat()
+def create_new_state() -> dict:
+    """Create a fresh state for a newborn TamaClaud."""
+    now = datetime.now(timezone.utc).isoformat()
     return {
-        "vida": VIDA_MAX,
-        "estado": "huevo",
-        "ultima_actividad": ahora,
-        "muertes": 0,
-        "tool_calls_totales": 0,
-        "nacimiento": ahora,
+        "hp": HP_MAX,
+        "state": "egg",
+        "last_activity": now,
+        "deaths": 0,
+        "total_tool_calls": 0,
+        "born": now,
+        "lang": DEFAULT_LANG,
     }
 
 
 def save_state(state: dict):
-    """Guarda el estado en el JSON."""
+    """Save state to JSON."""
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(STATE_FILE, "w", encoding="utf-8") as f:
         json.dump(state, f, indent=2, ensure_ascii=False)
 
 
-def minutos_inactivo(state: dict) -> float:
-    """Calcula cuántos minutos han pasado desde la última actividad."""
+# --- Logic ---
+
+def minutes_inactive(state: dict) -> float:
+    """Calculate minutes since last activity."""
     try:
-        ultima = datetime.fromisoformat(state["ultima_actividad"])
-        ahora = datetime.now(timezone.utc)
-        # Asegurar que ultima tenga timezone
-        if ultima.tzinfo is None:
-            ultima = ultima.replace(tzinfo=timezone.utc)
-        delta = (ahora - ultima).total_seconds() / 60.0
+        last = datetime.fromisoformat(state["last_activity"])
+        now = datetime.now(timezone.utc)
+        if last.tzinfo is None:
+            last = last.replace(tzinfo=timezone.utc)
+        delta = (now - last).total_seconds() / 60.0
         return max(0, delta)
     except (ValueError, KeyError):
         return 0
 
 
-def aplicar_decay_inactividad(state: dict) -> dict:
-    """Aplica pérdida de vida por inactividad."""
-    mins = minutos_inactivo(state)
+def apply_inactivity_decay(state: dict) -> dict:
+    """Apply hp loss from inactivity."""
+    mins = minutes_inactive(state)
 
-    if mins >= MUERTE_MIN:
-        if state["estado"] != "muerto" and state["estado"] != "fantasma":
-            state["vida"] = 0
-            state["estado"] = "muerto"
-            state["muertes"] = state.get("muertes", 0) + 1
-    elif mins >= HAMBRE_MIN:
-        state["estado"] = "hambre"
-        # Decay continuo después de 30 min
-        mins_decay = mins - INACTIVIDAD_DECAY_MIN
-        vida_perdida = int(mins_decay)
-        state["vida"] = max(0, VIDA_MAX - vida_perdida)
-        if state["vida"] == 0:
-            state["estado"] = "muerto"
-            state["muertes"] = state.get("muertes", 0) + 1
-    elif mins >= INACTIVIDAD_DECAY_MIN:
-        mins_decay = mins - INACTIVIDAD_DECAY_MIN
-        vida_perdida = int(mins_decay)
-        state["vida"] = max(0, state.get("vida", VIDA_MAX) - vida_perdida)
-        if state["vida"] == 0:
-            state["estado"] = "muerto"
-            state["muertes"] = state.get("muertes", 0) + 1
+    if mins >= DEAD_MIN:
+        if state["state"] not in ("dead", "ghost"):
+            state["hp"] = 0
+            state["state"] = "dead"
+            state["deaths"] = state.get("deaths", 0) + 1
+    elif mins >= HUNGRY_MIN:
+        state["state"] = "hungry"
+        mins_decay = mins - INACTIVITY_DECAY_MIN
+        hp_lost = int(mins_decay)
+        state["hp"] = max(0, HP_MAX - hp_lost)
+        if state["hp"] == 0:
+            state["state"] = "dead"
+            state["deaths"] = state.get("deaths", 0) + 1
+    elif mins >= INACTIVITY_DECAY_MIN:
+        mins_decay = mins - INACTIVITY_DECAY_MIN
+        hp_lost = int(mins_decay)
+        state["hp"] = max(0, state.get("hp", HP_MAX) - hp_lost)
+        if state["hp"] == 0:
+            state["state"] = "dead"
+            state["deaths"] = state.get("deaths", 0) + 1
 
     return state
 
 
-def calcular_estado(state: dict) -> str:
-    """Decide el estado/sprite basado en vida y tiempo."""
-    if state["vida"] <= 0:
-        return "fantasma" if state.get("estado") == "muerto" else "muerto"
+def calculate_state(state: dict) -> str:
+    """Determine state/sprite based on hp and time."""
+    if state["hp"] <= 0:
+        return "ghost" if state.get("state") == "dead" else "dead"
 
-    mins = minutos_inactivo(state)
+    mins = minutes_inactive(state)
 
-    if mins >= MUERTE_MIN:
-        return "muerto"
-    elif mins >= HAMBRE_MIN:
-        return "hambre"
-    elif state["vida"] > 70:
-        return "feliz"
-    elif state["vida"] > 40:
-        return "feliz"
+    if mins >= DEAD_MIN:
+        return "dead"
+    elif mins >= HUNGRY_MIN:
+        return "hungry"
+    elif state["hp"] > 40:
+        return "happy"
     else:
-        return "estresado"
+        return "stressed"
 
 
 def handle_event(state: dict, event: str, success: bool = True) -> dict:
-    """Procesa eventos de hooks."""
-    ahora = datetime.now(timezone.utc).isoformat()
+    """Process hook events."""
+    now = datetime.now(timezone.utc).isoformat()
 
-    # Si está muerto, resucitar
-    if state["estado"] in ("muerto", "fantasma"):
-        state = resucitar(state)
+    # If dead, resurrect
+    if state["state"] in ("dead", "ghost"):
+        state = resurrect(state)
         return state
 
     if event == "pre_tool":
-        state["estado"] = "comiendo"
-        state["ultima_actividad"] = ahora
+        state["state"] = "eating"
+        state["last_activity"] = now
 
     elif event == "post_tool":
-        state["tool_calls_totales"] = state.get("tool_calls_totales", 0) + 1
-        state["ultima_actividad"] = ahora
+        state["total_tool_calls"] = state.get("total_tool_calls", 0) + 1
+        state["last_activity"] = now
 
         if success:
-            state["vida"] = min(VIDA_MAX, state.get("vida", 0) + TOOL_SUCCESS_BONUS)
-            state["estado"] = "bailando"
+            state["hp"] = min(HP_MAX, state.get("hp", 0) + TOOL_SUCCESS_BONUS)
+            state["state"] = "dancing"
         else:
-            state["vida"] = max(0, state.get("vida", 0) - TOOL_FAILURE_PENALTY)
-            state["estado"] = "estresado"
-            if state["vida"] <= 0:
-                state["estado"] = "muerto"
-                state["muertes"] = state.get("muertes", 0) + 1
+            state["hp"] = max(0, state.get("hp", 0) - TOOL_FAILURE_PENALTY)
+            state["state"] = "stressed"
+            if state["hp"] <= 0:
+                state["state"] = "dead"
+                state["deaths"] = state.get("deaths", 0) + 1
 
     elif event == "stop":
-        state["ultima_actividad"] = ahora
-        state["estado"] = "durmiendo"
+        state["last_activity"] = now
+        state["state"] = "sleeping"
 
     return state
 
 
-def resucitar(state: dict) -> dict:
-    """Resucita al TamaClaud muerto."""
-    ahora = datetime.now(timezone.utc).isoformat()
-    state["vida"] = 50  # Resucita con media vida
-    state["estado"] = "huevo"
-    state["ultima_actividad"] = ahora
+def resurrect(state: dict) -> dict:
+    """Resurrect a dead TamaClaud."""
+    now = datetime.now(timezone.utc).isoformat()
+    state["hp"] = 50
+    state["state"] = "egg"
+    state["last_activity"] = now
     return state
 
 
-def barra_vida(vida: int) -> str:
-    """Genera la barra de vida visual."""
-    bloques_llenos = int((vida / VIDA_MAX) * 10)
-    bloques_vacios = 10 - bloques_llenos
-    return "█" * bloques_llenos + "░" * bloques_vacios
+# --- Rendering ---
+
+def hp_bar(hp: int) -> str:
+    """Generate visual hp bar."""
+    filled = int((hp / HP_MAX) * 10)
+    empty = 10 - filled
+    return "█" * filled + "░" * empty
 
 
 def render_status(state: dict) -> str:
-    """Genera la línea de status para mostrar."""
-    # Aplicar decay por inactividad para mostrar estado actualizado
-    state = aplicar_decay_inactividad(state)
+    """Generate the status line output."""
+    state = apply_inactivity_decay(state)
 
-    # Recalcular estado si no está en un estado transitorio
-    if state["estado"] not in ("comiendo", "bailando", "durmiendo", "huevo"):
-        state["estado"] = calcular_estado(state)
+    # Recalculate state if not in a transient state
+    if state["state"] not in ("eating", "dancing", "sleeping", "egg"):
+        state["state"] = calculate_state(state)
 
-    vida = state.get("vida", 0)
-    estado = state.get("estado", "feliz")
-    muertes = state.get("muertes", 0)
-    calls = state.get("tool_calls_totales", 0)
-    sprite = SPRITES.get(estado, "(？)")
+    hp = state.get("hp", 0)
+    current_state = state.get("state", "happy")
+    deaths = state.get("deaths", 0)
+    calls = state.get("total_tool_calls", 0)
+    sprite = SPRITES.get(current_state, "(？)")
 
-    # Emoji según estado
-    if estado == "muerto" or estado == "fantasma":
-        emoji = "💀"
-    elif estado == "hambre":
-        emoji = "😱"
-    elif estado == "comiendo":
-        emoji = "🍖"
-    elif estado == "bailando":
-        emoji = "🎉"
-    elif estado == "estresado":
-        emoji = "😰"
-    elif estado == "durmiendo":
-        emoji = "😴"
-    elif estado == "huevo":
-        emoji = "🥚"
-    else:
-        emoji = "🐣"
+    # Emoji by state
+    emoji_map = {
+        "dead": "💀", "ghost": "💀",
+        "hungry": "😱", "eating": "🍖",
+        "dancing": "🎉", "stressed": "😰",
+        "sleeping": "😴", "egg": "🥚",
+    }
+    emoji = emoji_map.get(current_state, "🐣")
 
-    barra = barra_vida(vida)
-    porcentaje = vida
+    bar = hp_bar(hp)
+    hp_label = t(state, "hp")
+    deaths_label = t(state, "deaths")
+    calls_label = t(state, "calls")
 
-    linea = (
-        f"{emoji} {sprite} vida:{barra} {porcentaje}%"
-        f"  |  💀 muertes: {muertes}"
-        f"  |  🍖 calls: {calls}"
+    line = (
+        f"{emoji} {sprite} {hp_label}:{bar} {hp}%"
+        f"  |  💀 {deaths_label}: {deaths}"
+        f"  |  🍖 {calls_label}: {calls}"
     )
 
-    return linea
+    return line
 
 
 def render_statusline() -> str:
-    """Status line mode: lee JSON de stdin (requerido por Claude Code) y muestra el TamaClaud."""
-    # Claude Code manda JSON por stdin, lo leemos pero no lo necesitamos
+    """Status line mode: read stdin JSON (required by Claude Code) and show TamaClaud."""
     try:
-        import select
         if not sys.stdin.isatty():
             sys.stdin.read()
     except Exception:
         pass
 
     state = load_state()
+    state = migrate_state(state)
     output = render_status(state)
     save_state(state)
     return output
 
 
+# --- Migration ---
+
+def migrate_state(state: dict) -> dict:
+    """Migrate old Spanish-key state to new English-key format."""
+    migrated = False
+
+    if "vida" in state and "hp" not in state:
+        state["hp"] = state.pop("vida")
+        migrated = True
+    if "estado" in state and "state" not in state:
+        # Map old Spanish states to English
+        state_map = {
+            "huevo": "egg", "durmiendo": "sleeping", "feliz": "happy",
+            "comiendo": "eating", "bailando": "dancing", "estresado": "stressed",
+            "hambre": "hungry", "muerto": "dead", "fantasma": "ghost",
+        }
+        old = state.pop("estado")
+        state["state"] = state_map.get(old, old)
+        migrated = True
+    if "ultima_actividad" in state and "last_activity" not in state:
+        state["last_activity"] = state.pop("ultima_actividad")
+        migrated = True
+    if "muertes" in state and "deaths" not in state:
+        state["deaths"] = state.pop("muertes")
+        migrated = True
+    if "tool_calls_totales" in state and "total_tool_calls" not in state:
+        state["total_tool_calls"] = state.pop("tool_calls_totales")
+        migrated = True
+    if "nacimiento" in state and "born" not in state:
+        state["born"] = state.pop("nacimiento")
+        migrated = True
+    if "lang" not in state:
+        state["lang"] = DEFAULT_LANG
+        migrated = True
+
+    return state
+
+
+# --- Main ---
+
 def main():
-    """Punto de entrada principal. Parsea argumentos."""
+    """Main entry point. Parse args."""
     args = sys.argv[1:]
     state = load_state()
+    state = migrate_state(state)
+
+    # --lang: set language
+    if "--lang" in args:
+        idx = args.index("--lang")
+        if idx + 1 < len(args):
+            lang = args[idx + 1].lower()
+            if lang in TRANSLATIONS:
+                state["lang"] = lang
+                save_state(state)
+                print(TRANSLATIONS[lang]["lang_set"])
+            else:
+                print(f"Available languages: {', '.join(TRANSLATIONS.keys())}")
+            sys.exit(0)
 
     if "--status" in args:
-        # Modo status line para Claude Code: lee stdin JSON y muestra
         print(render_statusline())
         sys.exit(0)
 
@@ -255,7 +338,6 @@ def main():
         else:
             sys.exit(1)
 
-        # Determinar success para post_tool
         success = True
         if "--success" in args:
             sidx = args.index("--success")
@@ -267,7 +349,7 @@ def main():
         save_state(state)
         sys.exit(0)
 
-    # Sin argumentos válidos: mostrar status
+    # No valid args: show status
     print(render_status(state))
     save_state(state)
 
