@@ -77,7 +77,11 @@ def load_state() -> dict:
     if STATE_FILE.exists():
         try:
             with open(STATE_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+            # Validate it's a dict with expected structure
+            if not isinstance(data, dict):
+                return create_new_state()
+            return data
         except (json.JSONDecodeError, IOError):
             pass
     return create_new_state()
@@ -100,8 +104,17 @@ def create_new_state() -> dict:
 def save_state(state: dict):
     """Save state to JSON."""
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(STATE_FILE, "w", encoding="utf-8") as f:
+    # Write atomically to avoid corruption from concurrent access
+    tmp_file = STATE_FILE.with_suffix(".tmp")
+    with open(tmp_file, "w", encoding="utf-8") as f:
         json.dump(state, f, indent=2, ensure_ascii=False)
+    tmp_file.replace(STATE_FILE)
+    # Restrict permissions on Unix (owner-only read/write)
+    try:
+        import stat
+        STATE_FILE.chmod(stat.S_IRUSR | stat.S_IWUSR)
+    except (OSError, AttributeError):
+        pass  # Windows handles permissions differently
 
 
 # --- Logic ---
@@ -255,9 +268,10 @@ def render_status(state: dict) -> str:
 
 def render_statusline() -> str:
     """Status line mode: read stdin JSON (required by Claude Code) and show TamaClaud."""
+    # Claude Code pipes JSON via stdin; consume it with a size limit
     try:
         if not sys.stdin.isatty():
-            sys.stdin.read()
+            sys.stdin.read(65536)  # 64KB max — more than enough for session data
     except Exception:
         pass
 
@@ -336,6 +350,11 @@ def main():
         if idx + 1 < len(args):
             event = args[idx + 1]
         else:
+            sys.exit(1)
+
+        # Validate event type
+        valid_events = ("pre_tool", "post_tool", "stop")
+        if event not in valid_events:
             sys.exit(1)
 
         success = True
