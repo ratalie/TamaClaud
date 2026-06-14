@@ -1,0 +1,35 @@
+<svg width="800" height="280" viewBox="0 0 800 280" xmlns="http://www.w3.org/2000/svg" font-family="'SF Mono','Cascadia Code',Menlo,Consolas,monospace">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a1b26"/>
+      <stop offset="100%" stop-color="#16161e"/>
+    </linearGradient>
+    <linearGradient id="hp" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#9ece6a"/>
+      <stop offset="100%" stop-color="#73daca"/>
+    </linearGradient>
+  </defs>
+
+  <!-- window -->
+  <rect width="800" height="280" rx="14" fill="url(#bg)"/>
+  <rect width="800" height="40" rx="14" fill="#24283b"/>
+  <rect y="26" width="800" height="14" fill="#24283b"/>
+  <circle cx="26" cy="20" r="6" fill="#f7768e"/>
+  <circle cx="48" cy="20" r="6" fill="#e0af68"/>
+  <circle cx="70" cy="20" r="6" fill="#9ece6a"/>
+  <text x="400" y="25" fill="#565f89" font-size="13" text-anchor="middle">claude — tamaclaud</text>
+
+  <!-- title -->
+  <text x="50" y="110" fill="#c0caf5" font-size="44" font-weight="bold">🥚 TamaClaud</text>
+
+  <!-- tagline -->
+  <text x="52" y="148" fill="#787c99" font-size="17">A Tamagotchi that lives in your Claude Code status line.</text>
+  <text x="52" y="172" fill="#787c99" font-size="17">Feed it tool calls. Stop coding and it <tspan fill="#f7768e" font-weight="bold">dies.</tspan> 💀</text>
+
+  <!-- status line demo -->
+  <rect x="50" y="206" width="700" height="44" rx="8" fill="#24283b"/>
+  <text x="68" y="234" font-size="18" fill="#c0caf5">🐣 (^‿^) hp:</text>
+  <rect x="196" y="222" width="84" height="14" rx="3" fill="#414868"/>
+  <rect x="196" y="222" width="50" height="14" rx="3" fill="url(#hp)"/>
+  <text x="290" y="234" font-size="18" fill="#c0caf5">60%  |  💀 deaths: 2  |  🍖 calls: 147</text>
+</svg>
