@@ -5,6 +5,11 @@
 **A Tamagotchi that lives in your Claude Code status line.**
 **Feed it tool calls. Stop coding and it dies. Then it haunts you.** 💀
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](./LICENSE)
+[![Python](https://img.shields.io/badge/python-3.6+-blue.svg?style=flat-square)](https://www.python.org)
+![Zero dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg?style=flat-square)
+[![GitHub stars](https://img.shields.io/github/stars/ratalie/TamaClaud?style=flat-square)](https://github.com/ratalie/TamaClaud/stargazers)
+
 🌐 [English](./docs/README.en.md) · [Español](./docs/README.es.md) · [Português](./docs/README.pt.md)
 
 </div>
