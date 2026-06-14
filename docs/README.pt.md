@@ -1,6 +1,23 @@
-# 🥚 TamaClaud
+<div align="center">
 
-Um Tamagotchi que vive na status line do Claude Code. Se alimenta de tool calls. Se você não codar, ele morre.
+![TamaClaud](../assets/banner.svg)
+
+**Um Tamagotchi que vive na status line do Claude Code.**
+**Se alimenta de tool calls. Se você não codar, ele morre. E depois te assombra.** 💀
+
+🌐 [English](./README.en.md) · [Español](./README.es.md) · [Português](./README.pt.md)
+
+</div>
+
+---
+
+## A ideia
+
+Você abre o Claude Code. Um ovinho choca na sua status line. Cada tool call o alimenta. Ele dança quando dá certo, entra em pânico quando falha.
+
+Aí você vai pra uma reunião. Duas horas depois ele está morrendo de fome. Quatro horas depois está morto, e seu contador de mortes sobe em um. Ele lembra. Para sempre.
+
+Você volta e ele ressuscita como ovo — mas as cicatrizes ficam no JSON.
 
 ```
 🐣 (^‿^) vida:██████░░░░ 60%  |  💀 mortes: 2  |  🍖 calls: 147
@@ -8,8 +25,8 @@ Um Tamagotchi que vive na status line do Claude Code. Se alimenta de tool calls.
 
 ## Estados
 
-| Estado | Sprite | Quando |
-|--------|--------|--------|
+| | Sprite | Quando |
+|---|---|---|
 | 🥚 Ovo | `(·)` | Primeira vez / ressuscitando |
 | 😴 Dormindo | `(-.-)zzz` | Claude está pensando |
 | 😊 Feliz | `(^‿^)` | Idle, tudo bem |
@@ -28,7 +45,7 @@ Um Tamagotchi que vive na status line do Claude Code. Se alimenta de tool calls.
 cp tamaclaud.py ~/.claude/tamaclaud.py
 ```
 
-2. Adicione os hooks em `~/.claude/settings.json`:
+2. Adicione os hooks e statusLine em `~/.claude/settings.json`:
 
 ```json
 {
@@ -67,16 +84,29 @@ cp tamaclaud.py ~/.claude/tamaclaud.py
 
 3. Pronto! Abra o Claude Code e comece a codar para alimentar seu TamaClaud.
 
-## Mecânica de vida
+> **Dica Windows:** use caminhos absolutos como `python3 "C:/Users/voce/.claude/tamaclaud.py" --status` em vez de `~`.
 
-- **vida_max**: 100
-- Cada tool call bem-sucedido: **+10 vida**
-- Cada tool failure: **-5 vida**
-- Sem atividade por 30 min: **-1 vida por minuto**
-- Sem atividade por 2h: estado **FAMINTO**
-- Sem atividade por 4h: estado **MORTO**
-- Ao iniciar nova sessão se estiver morto: **ressurreição** (volta com 50 de vida)
-- Vida chega a 0: **MORTE instantânea**
+## Como funciona a vida
+
+```
+Cada tool call bem-sucedido  → +10 vida
+Cada tool failure            → -5 vida
+Sem atividade 30 min         → -1 vida por minuto
+Sem atividade 2h             → FAMINTO
+Sem atividade 4h             → MORTO (contador de mortes +1)
+Nova sessão estando morto    → ressurreição (volta com 50 de vida)
+Vida chega a 0               → MORTE instantânea
+```
+
+## Mudar o idioma
+
+Inglês por padrão. Mude quando quiser:
+
+```bash
+python3 ~/.claude/tamaclaud.py --lang es   # Español
+python3 ~/.claude/tamaclaud.py --lang pt   # Português
+python3 ~/.claude/tamaclaud.py --lang en   # English
+```
 
 ## Arquivo de estado
 
@@ -84,19 +114,15 @@ Salvo em `~/.claude/tamaclaud.json`:
 
 ```json
 {
-  "vida": 80,
-  "estado": "feliz",
-  "ultima_actividad": "2026-06-13T10:30:00+00:00",
-  "muertes": 2,
-  "tool_calls_totales": 147,
-  "nacimiento": "2026-06-01T09:00:00+00:00"
+  "hp": 80,
+  "state": "happy",
+  "last_activity": "2026-06-13T10:30:00+00:00",
+  "deaths": 2,
+  "total_tool_calls": 147,
+  "born": "2026-06-01T09:00:00+00:00",
+  "lang": "pt"
 }
 ```
-
-## Requisitos
-
-- Python 3.6+ (sem dependências externas)
-- Claude Code com suporte a hooks e status line
 
 ## Uso manual (debug)
 
@@ -113,6 +139,27 @@ python3 ~/.claude/tamaclaud.py --event stop
 
 ## ⚠️ Nota sobre Windows
 
-Há um [bug conhecido no Claude Code no Windows](https://github.com/anthropics/claude-code/issues/66455) onde o `statusLine` custom nunca é invocado automaticamente. Os hooks (alimentar/mecânica de vida) funcionam bem, mas a barra persistente não renderiza até que isso seja corrigido upstream.
+Há um [bug conhecido no Claude Code no Windows](https://github.com/anthropics/claude-code/issues/66455) onde o `statusLine` custom nunca é invocado automaticamente. Os hooks (alimentar, vida, morte) funcionam bem — só a barra persistente não renderiza ainda. **Workaround:** digite `tamaclaud` no CLI para ver seu pet.
 
-**Workaround:** digite `tamaclaud` no CLI do Claude Code para ver seu pet manualmente.
+## 🔒 Segurança e privacidade
+
+Tudo fica local. Sem chamadas de rede. Sem telemetria. Nada sai da sua máquina, nunca. O arquivo de estado contém apenas: vida, nome do estado, timestamps, contador de mortes e de calls. Sem código, sem caminhos, sem dados pessoais.
+
+## FAQ
+
+**Precisa de um arquivo de config?**
+Só um JSON que ele mesmo gerencia. Você nunca toca nele.
+
+**O que acontece se ele morrer enquanto eu durmo?**
+Ele vira fantasma. Quando você volta e coda, ele ressuscita como ovo com 50 de vida. A morte fica no registro dele.
+
+**Posso ter mais de um?**
+Um pet, uma máquina. Como responsabilidade de verdade.
+
+**Por que "TamaClaud"?**
+Você sabe exatamente por quê.
+
+## Requisitos
+
+- Python 3.6+ (sem dependências externas)
+- Claude Code com suporte a hooks e status line
