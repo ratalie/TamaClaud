@@ -47,3 +47,21 @@ A VS Code extension that shows TamaClaud in the status bar is coming soon. Stay 
 ## 🤝 Contributing
 
 PRs welcome! New languages, sprites, features, bug fixes — all good. See [CONTRIBUTING.md](./CONTRIBUTING.md).
+
+---
+
+## 🔒 Security & Privacy
+
+**All data stays local.** TamaClaud never makes network requests, never phones home, and never touches your code. The only file it reads/writes is `~/.claude/tamaclaud.json` — your pet's state.
+
+| Measure | What it does |
+|---------|--------------|
+| **Atomic writes** | State saves to a `.tmp` file then renames — no corruption if two hooks fire at once |
+| **File permissions** | `chmod 600` on Unix — only your user can read the state file |
+| **stdin limit** | Reads max 64KB from stdin — prevents memory issues from unexpected input |
+| **Event validation** | Only accepts `pre_tool`, `post_tool`, `stop` — rejects anything else |
+| **State validation** | Verifies the JSON is a valid dict before using it |
+| **No dependencies** | Pure Python stdlib — no supply chain risk |
+| **No telemetry** | Zero network calls. Nothing leaves your machine. Ever. |
+
+Your state file contains only: hp, state name, timestamps, death count, and tool call count. No code content, no file paths, no personal data.
